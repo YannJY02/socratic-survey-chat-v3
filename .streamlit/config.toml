@@ -12,5 +12,9 @@ codeBackgroundColor     = "#F7F9FA"  # gentle panel for code blocks
 [client]
 toolbarMode = "minimal"
 
+[server]
+enableCORS = false
+enableXsrfProtection = false
+
 [browser]
 gatherUsageStats = false

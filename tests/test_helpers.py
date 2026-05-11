@@ -18,6 +18,7 @@ import pytest
 # so this import executes app.py's top-level code against the mocks.
 # ---------------------------------------------------------------------------
 import app
+import study_content
 
 
 # ===========================================================================
@@ -230,3 +231,123 @@ class TestBuildTranscript:
         for msg in result["messages"]:
             assert "condition" not in msg
             assert "model" not in msg
+
+
+# ===========================================================================
+#  study-specific route, phase, and payload helpers
+# ===========================================================================
+
+class TestStudyRoutingHelpers:
+    """Tests for opaque route-code mapping and phase sequencing."""
+
+    def test_normalize_route_code_strips_and_uppercases(self):
+        assert app.normalize_route_code(" q7m2 ") == "Q7M2"
+
+    def test_normalize_route_code_rejects_blank_values(self):
+        assert app.normalize_route_code("   ") is None
+
+    def test_resolve_route_code_uses_opaque_codes_only(self):
+        conditions = [
+            {"route_code": "Q7M2", "passcode": "Q7M2"},
+            {"route_code": "L9T4", "passcode": "L9T4"},
+        ]
+        assert app.resolve_route_code("q7m2", conditions, 2) == 0
+        assert app.resolve_route_code("L9T4", conditions, 2) == 1
+        assert app.resolve_route_code("I_PS", conditions, 2) is None
+
+    def test_get_phase_sequence_returns_configured_order(self):
+        condition = {"phase_sequence": ("problem_solving", "instruction")}
+        assert app.get_phase_sequence(condition) == ("problem_solving", "instruction")
+
+    def test_count_participant_messages_counts_only_user_turns(self):
+        messages = [
+            {"role": "user", "content": "one"},
+            {"role": "assistant", "content": "reply"},
+            {"role": "user", "content": "two"},
+        ]
+        assert app.count_participant_messages(messages) == 2
+
+    def test_rsm_options_match_canonical_labels(self):
+        assert study_content.RSM_COUNT_OPTIONS == (
+            "1 idea",
+            "2 ideas",
+            "3 ideas",
+            "4 or more ideas",
+        )
+
+
+class TestBuildStudyPayload:
+    """Tests for the enriched Qualtrics copy-back payload."""
+
+    def test_payload_contains_required_copy_back_fields(self):
+        payload = app.build_study_payload(
+            route_code="Q7M2",
+            messages=[{"role": "user", "content": "Hello", "timestamp": "t1"}],
+            final_answer={"content": "My design", "submitted_at": "t2"},
+            rsm_count={"value": "3 ideas", "submitted_at": "t3"},
+            phase_records=[
+                {"phase": "instruction", "started_at": "t0", "ended_at": "t1"},
+                {"phase": "problem_solving", "started_at": "t1", "ended_at": "t3"},
+            ],
+            errors=[],
+            started_at="t0",
+            completed_at="t4",
+        )
+
+        assert payload["schema_version"] == "chatbot_stage_v1"
+        assert payload["route_code"] == "Q7M2"
+        assert payload["completion_status"] == "complete"
+        assert payload["started_at"] == "t0"
+        assert payload["completed_at"] == "t4"
+        assert payload["phase_records"][0]["phase"] == "instruction"
+        assert payload["chat_transcript"][0]["role"] == "participant"
+        assert payload["final_answer"]["content"] == "My design"
+        assert payload["rsm_count"]["value"] == "3 ideas"
+        assert payload["errors"] == []
+
+    def test_payload_does_not_expose_condition_identity_or_pid(self):
+        payload = app.build_study_payload(
+            route_code="L9T4",
+            messages=[],
+            final_answer={"content": "", "submitted_at": ""},
+            rsm_count={"value": "1 idea", "submitted_at": ""},
+            phase_records=[],
+            errors=[],
+            started_at="",
+            completed_at="",
+        )
+
+        serialized = str(payload)
+        assert "I_PS" not in serialized
+        assert "PS_I" not in serialized
+        assert "I->PS" not in serialized
+        assert "PS->I" not in serialized
+        assert "condition_internal" not in serialized
+        assert "method_label" not in serialized
+        assert "pid" not in serialized
+
+
+class TestStudyContentSync:
+    """Regression checks for canonical participant-facing content."""
+
+    def test_shared_background_uses_canonical_researcher_labels(self):
+        background = study_content.SHARED_PROBLEM_BACKGROUND
+        assert "Dr. De Jong" in background
+        assert "Dr. Jansen" in background
+        assert "Dr. De Vries" in background
+        assert "Dr. de Vries" not in background
+        assert "Dr. Bakker" not in background
+
+    def test_problem_task_prompt_is_split_from_shared_background(self):
+        assert "This is your task" not in study_content.SHARED_PROBLEM_BACKGROUND
+        assert "This is your task" in study_content.PROBLEM_SOLVING_TASK_PROMPT
+
+    def test_no_identifying_information_warning_is_present(self):
+        assert "Do not enter your name" in study_content.PROBLEM_SOLVING_INSTRUCTIONS
+        assert "Study ideas to submit" in study_content.PROBLEM_SOLVING_INSTRUCTIONS
+
+    def test_exact_runtime_prompt_shape_is_synchronized(self):
+        assert "ROLE AND INVARIANCE" in app.SOCRATIC_TUTOR_PROMPT
+        assert "AUTHORIZED RESOURCES" in app.SOCRATIC_TUTOR_PROMPT
+        assert "DIAGNOSTIC CUEING AND CORRECTNESS GUARDRAILS" in app.SOCRATIC_TUTOR_PROMPT
+        assert "OUTPUT SHAPE" in app.SOCRATIC_TUTOR_PROMPT

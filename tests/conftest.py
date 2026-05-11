@@ -36,6 +36,9 @@ _st_mock.session_state = {
     "messages":          [],
 }
 _st_mock.cache_resource = lambda fn: fn   # no-op decorator
+_st_mock.button.return_value = False
+_st_mock.chat_input.return_value = None
+_st_mock.form_submit_button.return_value = False
 
 sys.modules.setdefault("streamlit", _st_mock)
 sys.modules.setdefault("dotenv",    MagicMock())

@@ -287,7 +287,10 @@ class TestBuildStudyPayload:
     def test_payload_contains_required_copy_back_fields(self):
         payload = app.build_study_payload(
             route_code="Q7M2",
-            messages=[{"role": "user", "content": "Hello", "timestamp": "t1"}],
+            messages=[
+                {"role": "user", "content": "Hello", "timestamp": "t1"},
+                {"role": "assistant", "content": "Assistant cue", "timestamp": "t2"},
+            ],
             final_answer={"content": "My design", "submitted_at": "t2"},
             rsm_count={"value": "3 ideas", "submitted_at": "t3"},
             phase_records=[
@@ -306,10 +309,11 @@ class TestBuildStudyPayload:
         assert "chat_transcript" not in payload
         assert "final_answer" not in payload
         assert payload["rsm_count"]["value"] == "3 ideas"
-        assert payload["process_metadata"]["participant_message_count"] == 1
-        assert payload["process_metadata"]["assistant_message_count"] == 0
+        assert payload["process_metadata"]["participant_turn_count"] == 1
+        assert payload["process_metadata"]["assistant_turn_count"] == 1
         assert payload["process_metadata"]["study_ideas_submitted"] is True
         assert payload["process_metadata"]["study_ideas_char_count"] == len("My design")
+        assert payload["assistant_messages"] == [{"content": "Assistant cue"}]
         assert payload["errors"] == []
 
     def test_payload_top_level_fields_are_minimal_and_fixed(self):
@@ -332,11 +336,12 @@ class TestBuildStudyPayload:
             "phase_records",
             "rsm_count",
             "process_metadata",
+            "assistant_messages",
             "errors",
         }
         assert set(payload["process_metadata"]) == {
-            "participant_message_count",
-            "assistant_message_count",
+            "participant_turn_count",
+            "assistant_turn_count",
             "study_ideas_submitted",
             "study_ideas_char_count",
         }
@@ -374,7 +379,18 @@ class TestBuildStudyPayload:
     def test_payload_does_not_expose_condition_identity_or_pid(self):
         payload = app.build_study_payload(
             route_code="L9T4",
-            messages=[{"role": "user", "content": "private participant text", "timestamp": "t1"}],
+            messages=[
+                {
+                    "role": "user",
+                    "content": "private participant text",
+                    "timestamp": "t1",
+                },
+                {
+                    "role": "assistant",
+                    "content": "assistant message kept for audit",
+                    "timestamp": "t2",
+                },
+            ],
             final_answer={"content": "", "submitted_at": ""},
             rsm_count={"value": "1 idea", "submitted_at": ""},
             phase_records=[],
@@ -392,6 +408,7 @@ class TestBuildStudyPayload:
         assert "method_label" not in serialized
         assert "pid" not in serialized
         assert "private participant text" not in serialized
+        assert "assistant message kept for audit" in serialized
 
 
 class TestStudyContentSync:
@@ -425,7 +442,9 @@ class TestStudyContentSync:
         assert study_content.SHOW_FULL_RESEARCH_PROBLEM_LABEL == "Show full research problem"
         assert "only for this learning activity" in study_content.STUDY_IDEAS_SAVE_NOTE
         assert "You do not need to save the text" in study_content.STUDY_IDEAS_SAVE_NOTE
-        assert "copy icon in the top-right corner" in study_content.COPY_STUDY_DATA_INSTRUCTION
+        assert "select all" in study_content.COPY_STUDY_DATA_INSTRUCTION
+        assert "copy manually" in study_content.COPY_STUDY_DATA_INSTRUCTION
+        assert "copy icon" not in study_content.COPY_STUDY_DATA_INSTRUCTION
 
     def test_exact_runtime_prompt_shape_is_synchronized(self):
         assert "ROLE AND INVARIANCE" in app.SOCRATIC_TUTOR_PROMPT

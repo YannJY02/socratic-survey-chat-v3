@@ -29,8 +29,9 @@
 #
 #  In both modes the participant completes the learning activity and copies a
 #  minimal JSON completion record back into the parent survey tool (e.g.
-#  Qualtrics).  The current study payload deliberately excludes the full chat
-#  transcript and the submitted study-ideas text.
+#  Qualtrics).  The current study payload deliberately excludes participant
+#  chat messages and the submitted study-ideas text, while retaining assistant
+#  messages for tutor-output audit.
 #
 #  COPY-BACK FORMAT
 #  ----------------
@@ -44,12 +45,13 @@
 #        "phase_records": [...],
 #        "rsm_count": {"value": "3 ideas"},
 #        "process_metadata": {...},
+#        "assistant_messages": [...],
 #        "errors": []
 #      }
 #
-#  Absolute timestamps, condition name, model, chat transcript, and submitted
-#  study-ideas text are deliberately excluded from the participant-visible
-#  payload.
+#  Absolute timestamps, condition name, model, participant chat messages, and
+#  submitted study-ideas text are deliberately excluded from the participant-
+#  visible payload.
 #
 #  Parse in Python:
 #      import json, pandas as pd
@@ -424,6 +426,15 @@ def summarize_errors(errors: list) -> list:
     ]
 
 
+def extract_assistant_messages(messages: list) -> list:
+    """Return assistant response text only, without participant messages."""
+    return [
+        {"content": (message.get("content") or "")}
+        for message in messages
+        if message.get("role") == "assistant"
+    ]
+
+
 def build_study_payload(
     *,
     route_code: str,
@@ -440,8 +451,8 @@ def build_study_payload(
     Build the enriched Qualtrics copy-back payload for the chatbot stage.
 
     The participant-visible payload intentionally excludes pid, condition
-    labels, model names, interpretable sequence labels, the full chat
-    transcript, and the submitted study-ideas text.
+    labels, model names, interpretable sequence labels, participant chat
+    messages, and the submitted study-ideas text.
     """
     final_answer_content = (final_answer.get("content") or "").strip()
     return {
@@ -452,13 +463,14 @@ def build_study_payload(
         "phase_records": summarize_phase_records(phase_records),
         "rsm_count": {"value": rsm_count.get("value", "")},
         "process_metadata": {
-            "participant_message_count": count_participant_messages(messages),
-            "assistant_message_count": sum(
+            "participant_turn_count": count_participant_messages(messages),
+            "assistant_turn_count": sum(
                 1 for message in messages if message.get("role") == "assistant"
             ),
             "study_ideas_submitted": bool(final_answer_content),
             "study_ideas_char_count": len(final_answer_content),
         },
+        "assistant_messages": extract_assistant_messages(messages),
         "errors": summarize_errors(errors),
     }
 
@@ -1010,6 +1022,11 @@ if "has_sent_message" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state["messages"] = []
 
+# True while a participant message has been added to history and the matching
+# assistant response still needs to be generated.
+if "pending_assistant_response" not in st.session_state:
+    st.session_state["pending_assistant_response"] = False
+
 # Start time for the Streamlit-side learning sequence.
 if "session_started_at" not in st.session_state:
     st.session_state["session_started_at"] = datetime.now(timezone.utc).isoformat()
@@ -1113,8 +1130,8 @@ def advance_after_phase() -> None:
     st.rerun()
 
 
-def submit_chat_message(prompt: str, active_condition: dict) -> None:
-    """Append a participant chat turn, call the LLM, and rerun after reply."""
+def queue_chat_message(prompt: str) -> None:
+    """Append a participant chat turn above the input, then rerun for the reply."""
     prompt = prompt.strip()
     if not prompt:
         st.stop()
@@ -1125,8 +1142,14 @@ def submit_chat_message(prompt: str, active_condition: dict) -> None:
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
     st.session_state["has_sent_message"] = True
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    st.session_state["pending_assistant_response"] = True
+    st.rerun()
+
+
+def stream_pending_assistant_response(active_condition: dict) -> bool:
+    """Stream the assistant reply in the history area after a queued user turn."""
+    if not st.session_state.get("pending_assistant_response"):
+        return False
 
     api_messages = build_api_messages(
         st.session_state["messages"],
@@ -1144,6 +1167,7 @@ def submit_chat_message(prompt: str, active_condition: dict) -> None:
                 response = st.write_stream(stream)
         except Exception:
             response = None
+            st.session_state["pending_assistant_response"] = False
             st.session_state["messages"].pop()
             st.session_state["has_sent_message"] = (
                 count_participant_messages(st.session_state["messages"]) > 0
@@ -1158,6 +1182,7 @@ def submit_chat_message(prompt: str, active_condition: dict) -> None:
                 "Please try sending your message again. If the problem continues, "
                 "return to the survey and contact the researcher."
             )
+            return True
 
     if response:
         st.session_state["messages"].append({
@@ -1165,7 +1190,10 @@ def submit_chat_message(prompt: str, active_condition: dict) -> None:
             "content": response,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
+        st.session_state["pending_assistant_response"] = False
         st.rerun()
+    st.session_state["pending_assistant_response"] = False
+    return True
 
 
 # =============================================================================
@@ -1204,8 +1232,8 @@ def submit_chat_message(prompt: str, active_condition: dict) -> None:
 #    • The RSM count form appears immediately after problem solving.
 #    • After all required Streamlit-side steps are complete, the completion
 #      banner and enriched JSON payload are rendered.
-#    • Streamlit's st.code() provides a built-in copy button in the top-right
-#      corner of the block, requiring no custom JavaScript.
+#    • The participant-visible JSON is rendered in a selectable text area so
+#      copying still works when a survey iframe blocks clipboard buttons.
 #    • The participant copies the JSON and pastes it back into Qualtrics.
 #
 # ── Header ────────────────────────────────────────────────────────────────────
@@ -1329,6 +1357,9 @@ if st.session_state["current_stage"] == "phase" and _current_phase == "problem_s
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
+    if stream_pending_assistant_response(condition):
+        st.stop()
+
     _participant_turns = count_participant_messages(st.session_state["messages"])
 
     _back_requested = False
@@ -1353,7 +1384,7 @@ if st.session_state["current_stage"] == "phase" and _current_phase == "problem_s
             )
 
     if _chat_submitted:
-        submit_chat_message(_chat_prompt, condition)
+        queue_chat_message(_chat_prompt)
 
     st.text_area(
         "Study ideas to submit",
@@ -1473,6 +1504,10 @@ if st.session_state["current_stage"] == "rsm":
             )
     if _rsm_back:
         st.session_state["confirm_end"] = False
+        if st.session_state["final_answer"]:
+            st.session_state["final_answer_text"] = st.session_state[
+                "final_answer"
+            ].get("content", "")
         st.session_state["current_stage"] = "phase"
         st.session_state["phase_index"] = _phase_sequence.index("problem_solving")
         request_scroll_top()
@@ -1495,12 +1530,12 @@ if st.session_state["current_stage"] == "rsm":
 #  Shown after the participant completes the required Streamlit-side learning
 #  sequence.  The payload keeps v3's copy-back model, but now exports only a
 #  minimal completion record: route code, relative timing, RSM count, process
-#  counts, and coarse error metadata.  Condition identity, model, full chat
-#  transcript, and submitted study-ideas text remain excluded from the
-#  participant-visible payload.
+#  counts, assistant messages, and coarse error metadata.  Condition identity,
+#  model, participant chat messages, and submitted study-ideas text remain
+#  excluded from the participant-visible payload.
 #
-#  Streamlit's st.code() block has a built-in copy button in the top-right
-#  corner - one click copies everything to the clipboard.
+#  A selectable text area is used instead of st.code() because clipboard
+#  buttons can fail inside survey platform iframes.
 
 if st.session_state["current_stage"] == "completion":
     if not st.session_state["completed_at"]:
@@ -1541,7 +1576,21 @@ if st.session_state["current_stage"] == "completion":
         completed_at=st.session_state["completed_at"],
     )
 
-    st.code(json.dumps(payload, indent=2, ensure_ascii=False), language="json")
+    payload_json = json.dumps(payload, indent=2, ensure_ascii=False)
+    st.text_area(
+        "Study data to copy (do not edit)",
+        value=payload_json,
+        height=420,
+        key="study_data_copy_box",
+        help=(
+            "If automatic copying is blocked by the browser or survey frame, "
+            "click inside this box, select all, and copy manually."
+        ),
+    )
+    st.caption(
+        "Manual copy: click inside the box, press Cmd+A on Mac or Ctrl+A on "
+        "Windows, then press Cmd+C or Ctrl+C."
+    )
     st.stop()
 
 

@@ -259,6 +259,11 @@ class TestStudyRoutingHelpers:
         condition = {"phase_sequence": ("problem_solving", "instruction")}
         assert app.get_phase_sequence(condition) == ("problem_solving", "instruction")
 
+    def test_configured_routes_cover_both_sequence_orders(self):
+        by_route = {condition["route_code"]: condition for condition in app.CONDITIONS[:2]}
+        assert by_route["Q7M2"]["phase_sequence"] == ("instruction", "problem_solving")
+        assert by_route["L9T4"]["phase_sequence"] == ("problem_solving", "instruction")
+
     def test_count_participant_messages_counts_only_user_turns(self):
         messages = [
             {"role": "user", "content": "one"},
@@ -297,18 +302,79 @@ class TestBuildStudyPayload:
         assert payload["schema_version"] == "chatbot_stage_v1"
         assert payload["route_code"] == "Q7M2"
         assert payload["completion_status"] == "complete"
-        assert payload["started_at"] == "t0"
-        assert payload["completed_at"] == "t4"
         assert payload["phase_records"][0]["phase"] == "instruction"
-        assert payload["chat_transcript"][0]["role"] == "participant"
-        assert payload["final_answer"]["content"] == "My design"
+        assert "chat_transcript" not in payload
+        assert "final_answer" not in payload
         assert payload["rsm_count"]["value"] == "3 ideas"
+        assert payload["process_metadata"]["participant_message_count"] == 1
+        assert payload["process_metadata"]["assistant_message_count"] == 0
+        assert payload["process_metadata"]["study_ideas_submitted"] is True
+        assert payload["process_metadata"]["study_ideas_char_count"] == len("My design")
         assert payload["errors"] == []
+
+    def test_payload_top_level_fields_are_minimal_and_fixed(self):
+        payload = app.build_study_payload(
+            route_code="L9T4",
+            messages=[],
+            final_answer={"content": "", "submitted_at": ""},
+            rsm_count={"value": "2 ideas", "submitted_at": ""},
+            phase_records=[],
+            errors=[],
+            started_at="",
+            completed_at="",
+        )
+
+        assert set(payload) == {
+            "schema_version",
+            "route_code",
+            "completion_status",
+            "total_duration_seconds",
+            "phase_records",
+            "rsm_count",
+            "process_metadata",
+            "errors",
+        }
+        assert set(payload["process_metadata"]) == {
+            "participant_message_count",
+            "assistant_message_count",
+            "study_ideas_submitted",
+            "study_ideas_char_count",
+        }
+
+    def test_payload_keeps_durations_without_absolute_timestamps(self):
+        payload = app.build_study_payload(
+            route_code="Q7M2",
+            messages=[],
+            final_answer={"content": "", "submitted_at": "2026-01-01T00:01:00+00:00"},
+            rsm_count={"value": "1 idea", "submitted_at": "2026-01-01T00:02:00+00:00"},
+            phase_records=[
+                {
+                    "phase": "instruction",
+                    "started_at": "2026-01-01T00:00:00+00:00",
+                    "ended_at": "2026-01-01T00:02:30+00:00",
+                },
+            ],
+            errors=[{
+                "type": "llm_api_failure",
+                "timestamp": "2026-01-01T00:01:00+00:00",
+                "recovered": True,
+            }],
+            started_at="2026-01-01T00:00:00+00:00",
+            completed_at="2026-01-01T00:05:00+00:00",
+        )
+
+        serialized = str(payload)
+        assert payload["total_duration_seconds"] == 300
+        assert payload["phase_records"][0]["duration_seconds"] == 150
+        assert "started_at" not in serialized
+        assert "completed_at" not in serialized
+        assert "submitted_at" not in serialized
+        assert "timestamp" not in serialized
 
     def test_payload_does_not_expose_condition_identity_or_pid(self):
         payload = app.build_study_payload(
             route_code="L9T4",
-            messages=[],
+            messages=[{"role": "user", "content": "private participant text", "timestamp": "t1"}],
             final_answer={"content": "", "submitted_at": ""},
             rsm_count={"value": "1 idea", "submitted_at": ""},
             phase_records=[],
@@ -325,6 +391,7 @@ class TestBuildStudyPayload:
         assert "condition_internal" not in serialized
         assert "method_label" not in serialized
         assert "pid" not in serialized
+        assert "private participant text" not in serialized
 
 
 class TestStudyContentSync:
@@ -346,8 +413,25 @@ class TestStudyContentSync:
         assert "Do not enter your name" in study_content.PROBLEM_SOLVING_INSTRUCTIONS
         assert "Study ideas to submit" in study_content.PROBLEM_SOLVING_INSTRUCTIONS
 
+    def test_problem_solving_instructions_are_compressed(self):
+        instructions = study_content.PROBLEM_SOLVING_INSTRUCTIONS
+        assert "The AI discussion partner may ask questions and point out issues" in instructions
+        assert "respond to your ideas" not in instructions
+        assert "unclear comparisons, missing measurements" not in instructions
+        assert "You may use ideas from the discussion above" not in instructions
+        assert "You can edit your submitted study ideas before continuing" not in instructions
+
+    def test_problem_solving_ui_support_text_is_synchronized(self):
+        assert study_content.SHOW_FULL_RESEARCH_PROBLEM_LABEL == "Show full research problem"
+        assert "only for this learning activity" in study_content.STUDY_IDEAS_SAVE_NOTE
+        assert "You do not need to save the text" in study_content.STUDY_IDEAS_SAVE_NOTE
+        assert "copy icon in the top-right corner" in study_content.COPY_STUDY_DATA_INSTRUCTION
+
     def test_exact_runtime_prompt_shape_is_synchronized(self):
         assert "ROLE AND INVARIANCE" in app.SOCRATIC_TUTOR_PROMPT
         assert "AUTHORIZED RESOURCES" in app.SOCRATIC_TUTOR_PROMPT
         assert "DIAGNOSTIC CUEING AND CORRECTNESS GUARDRAILS" in app.SOCRATIC_TUTOR_PROMPT
+        assert "brief soft reminder" in app.SOCRATIC_TUTOR_PROMPT
+        assert "Do not suggest a specific alternative direction" in app.SOCRATIC_TUTOR_PROMPT
+        assert "short and neutral" in app.SOCRATIC_TUTOR_PROMPT
         assert "OUTPUT SHAPE" in app.SOCRATIC_TUTOR_PROMPT

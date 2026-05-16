@@ -27,53 +27,51 @@
 #    opaque learning-sequence routes.  The Socratic tutor and model remain
 #    constant; only the instruction/problem-solving phase order changes.
 #
-#  In both modes the participant chats, clicks End, and copies a JSON
-#  transcript back into the parent survey tool (e.g. Qualtrics).
+#  In both modes the participant completes the learning activity and copies a
+#  minimal JSON completion record back into the parent survey tool (e.g.
+#  Qualtrics).  The current study payload deliberately excludes the full chat
+#  transcript and the submitted study-ideas text.
 #
-#  TRANSCRIPT FORMAT
-#  -----------------
-#  After clicking End, the participant receives a JSON block:
+#  COPY-BACK FORMAT
+#  ----------------
+#  After completion, the participant receives a JSON block:
 #
 #      {
-#        "messages": [
-#          {
-#            "role":      "participant",
-#            "content":   "Hello!",
-#            "timestamp": "2026-03-06T14:22:01.123456+00:00"
-#          },
-#          {
-#            "role":      "assistant",
-#            "content":   "Hi there, how can I help you today?",
-#            "timestamp": "2026-03-06T14:22:03.456789+00:00"
-#          }
-#        ]
+#        "schema_version": "chatbot_stage_v1",
+#        "route_code": "Q7M2",
+#        "completion_status": "complete",
+#        "total_duration_seconds": 1234.5,
+#        "phase_records": [...],
+#        "rsm_count": {"value": "3 ideas"},
+#        "process_metadata": {...},
+#        "errors": []
 #      }
 #
-#  Timestamps are UTC ISO-8601 with an explicit +00:00 offset so they are
-#  unambiguous across time zones.  Condition name and model are deliberately
-#  excluded so participants cannot infer their assigned arm.
+#  Absolute timestamps, condition name, model, chat transcript, and submitted
+#  study-ideas text are deliberately excluded from the participant-visible
+#  payload.
 #
 #  Parse in Python:
 #      import json, pandas as pd
-#      data = json.loads(transcript_string)
-#      df   = pd.DataFrame(data["messages"])   # one row per turn
+#      data = json.loads(study_data_string)
+#      df   = pd.json_normalize(data)
 #
 #  Parse in R:
 #      library(jsonlite)
-#      data <- fromJSON(transcript_string)
-#      df   <- as.data.frame(data$messages)    # one row per turn
+#      data <- fromJSON(study_data_string)
+#      df   <- as.data.frame(data)
 #
 #  INTEGRATION WITH SURVEY TOOLS
 #  ------------------------------
 #  Survey mode:
 #    (1) Add a Text / Graphic block in Qualtrics with a link to the app.
 #    (2) After the chat, add a Text Entry question where participants
-#        paste their transcript.
+#        paste their study-data JSON.
 #
 #  Experiment mode:
 #    (1) Use Qualtrics Survey Flow > Randomizer to split participants.
 #    (2) In each arm display the matching passcode and the app URL.
-#    (3) After the chat, add a Text Entry question for the transcript.
+#    (3) After the activity, add a Text Entry question for the study-data JSON.
 #    (4) Export responses - treatment assignment is recovered from the
 #        passcode stored in the relevant Qualtrics branch variable.
 #
@@ -109,8 +107,8 @@
 #  ---------------
 #  This file is intentionally self-contained.  The only section you need
 #  to edit for most studies is the RESEARCHER CONFIGURATION block below.
-#  Everything else - session management, participant routing, transcript
-#  export, and the chat UI - is handled for you automatically.
+#  Everything else - session management, participant routing, study-data
+#  copy-back, and the chat UI - is handled for you automatically.
 #
 # =============================================================================
 
@@ -127,9 +125,15 @@ import streamlit as st
 from openai import OpenAI
 from dotenv import load_dotenv          # reads .env into os.environ automatically
 
+try:
+    import streamlit.components.v1 as components
+except Exception:  # pragma: no cover - test mocks may not expose components
+    components = None
+
 from study_content import (
     CANONICAL_SOLUTION_FIGURE_CAPTION,
     CANONICAL_SOLUTION_FIGURE_PATH,
+    COPY_STUDY_DATA_INSTRUCTION,
     INSTRUCTION_AFTER_PROBLEM_SOLVING_STIMULUS_OPENING,
     INSTRUCTION_ENTRY,
     INSTRUCTION_FIRST_STIMULUS_OPENING,
@@ -145,6 +149,8 @@ from study_content import (
     RSM_COUNT_PROMPT,
     SESSION_INTRODUCTION,
     SHARED_PROBLEM_BACKGROUND,
+    SHOW_FULL_RESEARCH_PROBLEM_LABEL,
+    STUDY_IDEAS_SAVE_NOTE,
 )
 
 # Load the .env file so that OPENAI_API_KEY is available via os.environ
@@ -169,8 +175,8 @@ load_dotenv()
 #    prepending the hidden system prompt at position 0.
 #
 #  build_transcript(messages)
-#    Formats the conversation history as the JSON transcript object shown
-#    to the participant at the end of the session.
+#    Legacy utility for formatting a conversation transcript. The current
+#    formal copy-back payload does not call this helper.
 
 def validate_passcode_routing(conditions: list, n_conditions: int) -> None:
     """
@@ -265,7 +271,11 @@ def build_api_messages(conversation: list, system_prompt: str) -> list:
 
 def build_transcript(messages: list) -> dict:
     """
-    Format the conversation history as the transcript object shown after chat ends.
+    Format the conversation history as a legacy transcript object.
+
+    The current thesis copy-back payload deliberately does not include this
+    object; it is retained only as a reusable utility from the original
+    surveychat template.
 
     Returns a JSON-serialisable dict with a single "messages" key.  Each
     entry carries:
@@ -275,10 +285,11 @@ def build_transcript(messages: list) -> dict:
 
     Design notes:
       - "user" is relabelled "participant" so researchers get a domain-
-        appropriate label when parsing the transcript in Python or R.
+        appropriate label if this legacy helper is reused for parsing in Python
+        or R outside the current thesis payload.
       - Condition name and model are intentionally excluded.  In experiment
         mode, participants must not be able to infer their assigned condition
-        from the transcript they read and manually copy back into the survey.
+        from any participant-visible exported object.
         Treatment assignment is recovered separately from the passcode stored
         in the survey platform's response data.
       - In survey mode (N_CONDITIONS = 1) there is only one condition, so
@@ -380,6 +391,39 @@ def count_participant_messages(messages: list) -> int:
     return sum(1 for message in messages if message.get("role") == "user")
 
 
+def seconds_between(started_at: str, ended_at: str) -> float | None:
+    """Return rounded seconds between two ISO datetimes, or None if invalid."""
+    try:
+        start = datetime.fromisoformat(started_at)
+        end = datetime.fromisoformat(ended_at)
+    except (TypeError, ValueError):
+        return None
+    return round((end - start).total_seconds(), 3)
+
+
+def summarize_phase_records(phase_records: list) -> list:
+    """Strip absolute timestamps and keep only phase labels and durations."""
+    summary = []
+    for record in phase_records:
+        item = {"phase": record.get("phase", "")}
+        duration = seconds_between(record.get("started_at"), record.get("ended_at"))
+        if duration is not None:
+            item["duration_seconds"] = duration
+        summary.append(item)
+    return summary
+
+
+def summarize_errors(errors: list) -> list:
+    """Keep coarse recovery metadata without absolute timestamps."""
+    return [
+        {
+            "type": error.get("type", ""),
+            "recovered": bool(error.get("recovered", False)),
+        }
+        for error in errors
+    ]
+
+
 def build_study_payload(
     *,
     route_code: str,
@@ -396,20 +440,56 @@ def build_study_payload(
     Build the enriched Qualtrics copy-back payload for the chatbot stage.
 
     The participant-visible payload intentionally excludes pid, condition
-    labels, model names, and any interpretable sequence labels.
+    labels, model names, interpretable sequence labels, the full chat
+    transcript, and the submitted study-ideas text.
     """
+    final_answer_content = (final_answer.get("content") or "").strip()
     return {
         "schema_version": "chatbot_stage_v1",
         "route_code": normalize_route_code(route_code) or "",
         "completion_status": completion_status,
-        "started_at": started_at,
-        "completed_at": completed_at,
-        "phase_records": phase_records,
-        "chat_transcript": build_transcript(messages)["messages"],
-        "final_answer": final_answer,
-        "rsm_count": rsm_count,
-        "errors": errors,
+        "total_duration_seconds": seconds_between(started_at, completed_at),
+        "phase_records": summarize_phase_records(phase_records),
+        "rsm_count": {"value": rsm_count.get("value", "")},
+        "process_metadata": {
+            "participant_message_count": count_participant_messages(messages),
+            "assistant_message_count": sum(
+                1 for message in messages if message.get("role") == "assistant"
+            ),
+            "study_ideas_submitted": bool(final_answer_content),
+            "study_ideas_char_count": len(final_answer_content),
+        },
+        "errors": summarize_errors(errors),
     }
+
+
+def request_scroll_top() -> None:
+    """Mark the next rerun as a deliberate page transition."""
+    st.session_state["_scroll_to_top"] = True
+
+
+def render_scroll_top_if_requested() -> None:
+    """Scroll to the top after explicit page or phase transitions."""
+    if not st.session_state.pop("_scroll_to_top", False):
+        return
+    if components is None:
+        return
+    components.html(
+        """
+        <script>
+        const scrollTargets = [window, window.parent];
+        for (const target of scrollTargets) {
+          try {
+            target.scrollTo({ top: 0, left: 0, behavior: "instant" });
+          } catch (error) {
+            try { target.scrollTo(0, 0); } catch (_) {}
+          }
+        }
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
 
 
 # ╔═════════════════════════════════════════════════════════════════════════════╗
@@ -537,6 +617,7 @@ Preserve productive struggle while making limitations in the participant's own i
 Encourage the participant to consider more than one possible study idea before narrowing or submitting.
 Use diagnostic cueing to help the participant experience the limits of a current idea and move toward another idea, comparison, or revision.
 Do not use cueing to coach one idea step by step into the canonical design.
+Track whether the dialogue is still developing the same participant-generated study idea. When the discussion has stayed with one idea for several tutor turns, use only a brief soft reminder that the activity encourages several study ideas, then ask whether the participant has another idea or wants to keep developing the current one. Do not suggest a specific alternative direction.
 
 AUTHORIZED RESOURCES
 Use only the focal scenario, the participant's current and previous messages, and the task instructions.
@@ -559,6 +640,7 @@ Use these moves when appropriate:
 - ask what alternative explanation remains possible;
 - ask what information is missing;
 - ask the participant to compare two possible study ideas;
+- briefly remind the participant that they may explore another study idea, then ask whether they have a new idea or want to continue developing the current one;
 - ask for one concrete revision to their current idea.
 
 DIAGNOSTIC CUEING AND CORRECTNESS GUARDRAILS
@@ -577,7 +659,10 @@ Use only these diagnostic cue categories:
 - idea too general to evaluate.
 In one response, use at most one diagnostic cue.
 After a diagnostic cue, redirect toward another possible study idea, another comparison, or one concrete revision.
-Do not keep the participant working indefinitely on one solution path.
+Treat repeated questions about the same proposed comparison, procedure, or measurement plan as one solution path. If the dialogue has stayed on the same solution path for several tutor turns, do not force a path shift. Instead, give one short optional branching reminder and ask whether the participant has another idea or wants to continue refining the current one.
+If the participant clearly wants to continue exploring the current idea, continue with ordinary Socratic clarification or diagnostic cueing, and wait a few tutor turns before repeating the reminder.
+This reminder should be short and neutral. It should not suggest any specific alternative design or add a rationale about causal direction, timing, measurement, procedure, or variables. It should not mention `RSM count`, scoring, later measures, or study hypotheses.
+Do not use repeated reminders to pressure the participant away from an idea they explicitly want to keep exploring.
 
 ANSWER-SEEKING HANDLING
 If the participant asks for the answer, asks for the best design, or asks you to write the design for them, briefly say that you cannot provide the design for them.
@@ -659,15 +744,15 @@ STUDY_TITLE = "Research Design Learning Activity"
 #           "Welcome. In this part of the study you will have a short "
 #           "conversation with an AI assistant about climate change. "
 #           "When you are done, click <strong>End this chat</strong> "
-#           "to receive your transcript."
+#           "and then copy the study data back into the survey."
 #       )
 #
 #       WELCOME_MESSAGE = (
 #           "This conversation is part of a research study on AI-assisted "
 #           "decision-making.  Your responses are confidential and will only "
 #           "be used for research purposes.<br><br>"
-#           "When finished, click <strong>End this chat</strong> to copy "
-#           "your transcript and paste it into the survey."
+#           "When finished, click <strong>End this chat</strong>, complete "
+#           "the final check, and paste the study data into the survey."
 #       )
 WELCOME_MESSAGE = (
     ""
@@ -902,13 +987,13 @@ if _passcode_routing and not st.session_state["passcode_accepted"]:
         st.session_state["passcode_accepted"] = True
 
 # Whether the participant has ended the chat session.
-# Flips to True when they confirm End; triggers the transcript panel.
+# Flips to True when they confirm End; triggers the next study stage.
 if "chat_ended" not in st.session_state:
     st.session_state["chat_ended"] = False
 
 # Two-step end-confirmation flag.
 # First click on "End this chat" sets this to True (arming the confirmation).
-# Second click on "✓ Confirm" sets chat_ended to True and shows the transcript.
+# Second click on "✓ Confirm" sets chat_ended to True and advances the flow.
 # This prevents accidental chat termination and loss of the conversation.
 if "confirm_end" not in st.session_state:
     st.session_state["confirm_end"] = False
@@ -1024,7 +1109,63 @@ def advance_after_phase() -> None:
         st.session_state["current_stage"] = "phase"
     else:
         st.session_state["current_stage"] = "completion"
+    request_scroll_top()
     st.rerun()
+
+
+def submit_chat_message(prompt: str, active_condition: dict) -> None:
+    """Append a participant chat turn, call the LLM, and rerun after reply."""
+    prompt = prompt.strip()
+    if not prompt:
+        st.stop()
+
+    st.session_state["messages"].append({
+        "role": "user",
+        "content": prompt,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+    st.session_state["has_sent_message"] = True
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    api_messages = build_api_messages(
+        st.session_state["messages"],
+        active_condition["system_prompt"],
+    )
+
+    with st.chat_message("assistant"):
+        try:
+            with st.spinner("AI discussion partner is responding..."):
+                stream = client.chat.completions.create(
+                    model=active_condition["model"],
+                    messages=api_messages,
+                    stream=True,
+                )
+                response = st.write_stream(stream)
+        except Exception:
+            response = None
+            st.session_state["messages"].pop()
+            st.session_state["has_sent_message"] = (
+                count_participant_messages(st.session_state["messages"]) > 0
+            )
+            st.session_state["errors"].append({
+                "type": "llm_api_failure",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "recovered": True,
+            })
+            st.error(
+                "**There was a connection problem with the AI discussion partner.** "
+                "Please try sending your message again. If the problem continues, "
+                "return to the survey and contact the researcher."
+            )
+
+    if response:
+        st.session_state["messages"].append({
+            "role": "assistant",
+            "content": response,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+        st.rerun()
 
 
 # =============================================================================
@@ -1053,8 +1194,8 @@ def advance_after_phase() -> None:
 #    • In the problem-solving phase, all messages in st.session_state["messages"]
 #      are replayed in order so the full conversation history is visible on
 #      every rerun.
-#    • st.chat_input() blocks further execution until the participant sends a
-#      message; the user message is appended, then the LLM is called.
+#    • A page-level chat form collects each participant message; the user
+#      message is appended, then the LLM is called.
 #    • The response is streamed token-by-token via st.write_stream() to give a
 #      natural, responsive feel even on slow connections.
 #    • The End chat button appears only after at least three participant turns.
@@ -1074,6 +1215,7 @@ st.markdown(
     f'</div>',
     unsafe_allow_html=True,
 )
+render_scroll_top_if_requested()
 
 # ── Passcode entry (experiment mode with passcode routing only) ─────────────
 # Shown before the learning sequence until a URL route_code or manual code is
@@ -1096,6 +1238,7 @@ if not st.session_state["passcode_accepted"]:
                 CONDITIONS[_idx].get("route_code")
             )
             st.session_state["passcode_accepted"] = True
+            request_scroll_top()
             st.rerun()
         else:
             st.error("Code not recognised. Please check and try again.")
@@ -1114,6 +1257,7 @@ if st.session_state["current_stage"] == "intro":
     st.markdown(SESSION_INTRODUCTION)
     if st.button("Continue", type="primary"):
         st.session_state["current_stage"] = "phase"
+        request_scroll_top()
         st.rerun()
     st.stop()
 
@@ -1144,6 +1288,7 @@ if st.session_state["current_stage"] == "phase" and _current_phase == "instructi
         with back_col:
             if st.button("Back to previous page", type="secondary"):
                 st.session_state["current_stage"] = "intro"
+                request_scroll_top()
                 st.rerun()
         with continue_col:
             if st.button("Continue", type="primary"):
@@ -1165,6 +1310,10 @@ if st.session_state["current_stage"] == "phase" and _current_phase == "problem_s
     else:
         st.markdown(INSTRUCTION_TO_PROBLEM_SOLVING_TRANSITION)
 
+    with st.expander(SHOW_FULL_RESEARCH_PROBLEM_LABEL, expanded=False):
+        st.markdown(SHARED_PROBLEM_BACKGROUND)
+        st.markdown(PROBLEM_SOLVING_TASK_PROMPT)
+
     st.markdown(PROBLEM_SOLVING_TASK_PROMPT)
     st.markdown("### Work with the AI discussion partner")
     st.markdown(PROBLEM_SOLVING_INSTRUCTIONS)
@@ -1185,57 +1334,87 @@ if st.session_state["current_stage"] == "phase" and _current_phase == "problem_s
     _back_requested = False
     _end_requested = False
     _confirm_requested = False
-    with st.form("final_answer_form", clear_on_submit=False):
-        st.text_area(
-            "Study ideas to submit",
-            key="final_answer_text",
-            height=160,
-            placeholder=(
-                "Describe the study ideas you want to submit."
-            ),
-        )
+    _chat_submitted = False
+    _chat_prompt = ""
 
-        if st.session_state["phase_index"] == 0:
-            back_col, end_col = st.columns([1, 1])
-            with back_col:
-                _back_requested = st.form_submit_button(
-                    "Back to previous page",
-                    type="secondary",
-                    use_container_width=True,
-                )
-        else:
-            end_col = st.container()
-        with end_col:
-            if _participant_turns >= 3:
-                if not st.session_state["confirm_end"]:
-                    _end_requested = st.form_submit_button(
-                        "End chat",
-                        type="secondary",
-                        use_container_width=True,
-                    )
-                else:
-                    # Second click required to confirm - prevents accidental endings.
-                    _confirm_requested = st.form_submit_button(
-                        "Submit study ideas and continue",
-                        type="primary",
-                        use_container_width=True,
-                    )
-            else:
-                remaining = 3 - _participant_turns
-                st.form_submit_button(
+    if not st.session_state["confirm_end"] and not st.session_state["chat_ended"]:
+        with st.form("chat_message_form", clear_on_submit=True):
+            _chat_prompt = st.text_area(
+                "Message to AI discussion partner",
+                key="chat_message_text",
+                height=76,
+                placeholder="Type your message here...",
+                label_visibility="collapsed",
+            )
+            _chat_submitted = st.form_submit_button(
+                "Send message",
+                type="secondary",
+                use_container_width=True,
+            )
+
+    if _chat_submitted:
+        submit_chat_message(_chat_prompt, condition)
+
+    st.text_area(
+        "Study ideas to submit",
+        key="final_answer_text",
+        height=160,
+        placeholder="Describe the study ideas you want to submit.",
+    )
+    st.caption(STUDY_IDEAS_SAVE_NOTE)
+
+    if st.session_state["phase_index"] == 0:
+        back_col, end_col = st.columns([1, 1])
+        with back_col:
+            _back_requested = st.button(
+                "Back to previous page",
+                type="secondary",
+                use_container_width=True,
+                key="problem_back_button",
+            )
+    else:
+        end_col = st.container()
+    with end_col:
+        if st.session_state["chat_ended"]:
+            _confirm_requested = st.button(
+                "Submit study ideas and continue",
+                type="primary",
+                use_container_width=True,
+                key="problem_submit_after_back_button",
+            )
+        elif _participant_turns >= 3:
+            if not st.session_state["confirm_end"]:
+                _end_requested = st.button(
                     "End chat",
                     type="secondary",
-                    disabled=True,
                     use_container_width=True,
+                    key="problem_end_button",
                 )
-                st.caption(
-                    f"The End chat option will appear after {remaining} more "
-                    f"message{'s' if remaining != 1 else ''} from you."
+            else:
+                _confirm_requested = st.button(
+                    "Submit study ideas and continue",
+                    type="primary",
+                    use_container_width=True,
+                    key="problem_confirm_submit_button",
                 )
+        else:
+            remaining = 3 - _participant_turns
+            st.button(
+                "End chat",
+                type="secondary",
+                disabled=True,
+                use_container_width=True,
+                key="problem_end_disabled_button",
+            )
+            st.caption(
+                f"The End chat option will appear after {remaining} more "
+                f"message{'s' if remaining != 1 else ''} from you."
+            )
 
     if _back_requested:
         st.session_state["confirm_end"] = False
         st.session_state["current_stage"] = "intro"
+        request_scroll_top()
         st.rerun()
 
     if _end_requested:
@@ -1255,69 +1434,7 @@ if st.session_state["current_stage"] == "phase" and _current_phase == "problem_s
             st.session_state["confirm_end"] = False
             mark_phase_ended("problem_solving")
             st.session_state["current_stage"] = "rsm"
-            st.rerun()
-
-    # Chat input - hidden after the problem-solving chat has ended.
-    if not st.session_state["confirm_end"] and (prompt := st.chat_input("Type your message here…")):
-
-        prompt = prompt.strip()
-        if not prompt:
-            st.stop()
-
-        # Append and immediately display the user's message
-        st.session_state["messages"].append({
-            "role": "user",
-            "content": prompt,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
-        st.session_state["has_sent_message"] = True
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        # Build the full message list for the API call.
-        # See build_api_messages() in the HELPER FUNCTIONS section for details.
-        api_messages = build_api_messages(
-            st.session_state["messages"],
-            condition["system_prompt"],
-        )
-
-        # Stream the model's response token-by-token for a natural feel
-        with st.chat_message("assistant"):
-            try:
-                with st.spinner("AI discussion partner is responding..."):
-                    stream = client.chat.completions.create(
-                        model=condition["model"],
-                        messages=api_messages,
-                        stream=True,
-                    )
-                    response = st.write_stream(stream)
-            except Exception:
-                response = None
-                # Remove the user message we just appended - leaving it in
-                # history without a paired assistant reply would send two
-                # consecutive user turns to the API on the next message.
-                st.session_state["messages"].pop()
-                st.session_state["has_sent_message"] = (
-                    count_participant_messages(st.session_state["messages"]) > 0
-                )
-                st.session_state["errors"].append({
-                    "type": "llm_api_failure",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "recovered": True,
-                })
-                st.error(
-                    "**There was a connection problem with the AI discussion partner.** "
-                    "Please try sending your message again. If the problem continues, "
-                    "return to the survey and contact the researcher."
-                )
-
-        # Save the completed assistant response to history
-        if response:
-            st.session_state["messages"].append({
-                "role": "assistant",
-                "content": response,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            })
+            request_scroll_top()
             st.rerun()
     st.stop()
 
@@ -1358,6 +1475,7 @@ if st.session_state["current_stage"] == "rsm":
         st.session_state["confirm_end"] = False
         st.session_state["current_stage"] = "phase"
         st.session_state["phase_index"] = _phase_sequence.index("problem_solving")
+        request_scroll_top()
         st.rerun()
     if _rsm_submitted:
         if _rsm_value is None:
@@ -1375,9 +1493,11 @@ if st.session_state["current_stage"] == "rsm":
 # =============================================================================
 #
 #  Shown after the participant completes the required Streamlit-side learning
-#  sequence.  The payload keeps v3's copy-back model, but enriches the JSON with
-#  phase timing, final answer, RSM count, and coarse error metadata.  Condition
-#  identity and model remain excluded from the participant-visible payload.
+#  sequence.  The payload keeps v3's copy-back model, but now exports only a
+#  minimal completion record: route code, relative timing, RSM count, process
+#  counts, and coarse error metadata.  Condition identity, model, full chat
+#  transcript, and submitted study-ideas text remain excluded from the
+#  participant-visible payload.
 #
 #  Streamlit's st.code() block has a built-in copy button in the top-right
 #  corner - one click copies everything to the clipboard.
@@ -1389,8 +1509,7 @@ if st.session_state["current_stage"] == "completion":
     st.markdown(
         '<div class="transcript-banner">'
         'You have completed this chatbot activity.<br><br>'
-        'Use the <strong>Copy to clipboard</strong> button in the study data box below. '
-        'Then return to Qualtrics and paste the full study data into the next survey box.<br><br>'
+        f'{COPY_STUDY_DATA_INSTRUCTION}<br><br>'
         'After pasting the study data into the survey box, continue with the survey.'
         '</div>',
         unsafe_allow_html=True,
@@ -1402,6 +1521,7 @@ if st.session_state["current_stage"] == "completion":
         else:
             st.session_state["current_stage"] = "rsm"
         st.session_state["completed_at"] = None
+        request_scroll_top()
         st.rerun()
 
     payload = build_study_payload(
@@ -1440,15 +1560,11 @@ if st.session_state["current_stage"] == "completion":
 #
 #  raw = qualtrics_response_column   # string value from Qualtrics export
 #  data = json.loads(raw)
-#  chat = pd.DataFrame(data["chat_transcript"])  # role, content, timestamp
-#  phases = pd.DataFrame(data["phase_records"])  # phase, started_at, ended_at
+#  phases = pd.DataFrame(data["phase_records"])  # phase, duration_seconds
+#  process = pd.json_normalize(data["process_metadata"])
 #
-#  Useful derived columns:
-#    chat["timestamp"] = pd.to_datetime(chat["timestamp"], utc=True)
-#    chat["turn"]      = range(len(chat))
-#    chat["words"]     = chat["content"].str.split().str.len()
-#    df_user           = chat[chat["role"] == "participant"]
-#    df_asst           = chat[chat["role"] == "assistant"]
+#  The formal payload does not contain chat transcripts or submitted study
+#  ideas text.
 #
 #  PARSING THE COPY-BACK PAYLOAD IN R
 #  -----------------------------------
@@ -1456,12 +1572,8 @@ if st.session_state["current_stage"] == "completion":
 #
 #  raw  <- qualtrics_response_column   # character vector from survey export
 #  data <- fromJSON(raw)
-#  chat <- as.data.frame(data$chat_transcript)  # role, content, timestamp
-#
-#  Useful transformations:
-#    chat$timestamp <- as.POSIXct(chat$timestamp, tz = "UTC", format = "%Y-%m-%dT%H:%M:%OS")
-#    df_user <- subset(chat, role == "participant")
-#    df_asst <- subset(chat, role == "assistant")
+#  phases <- as.data.frame(data$phase_records)
+#  process <- as.data.frame(data$process_metadata)
 #
 #  CONDITION ASSIGNMENT (EXPERIMENT MODE)
 #  ----------------------------------------
@@ -1475,8 +1587,9 @@ if st.session_state["current_stage"] == "completion":
 #  Recommended minimum checks before analysis:
 #    1. Verify json.loads() succeeds for every row (malformed pastes).
 #    2. Verify completion_status == "complete" before primary analysis.
-#    3. Check chat_transcript, final_answer, rsm_count, and phase_records.
-#    4. Review sampled transcripts for answer leakage and Socratic-role drift.
+#    3. Check rsm_count, phase_records, and process_metadata.
+#    4. Review pilot AI-reply QA records for answer leakage and Socratic-role
+#       drift before the main study.
 #    5. Treat low engagement or malformed payloads during data cleaning, not
 #       inside the Streamlit app.
 #

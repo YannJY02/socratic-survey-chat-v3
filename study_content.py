@@ -52,19 +52,27 @@ Good luck and do not give up until you have proposed several ways to test the di
 
 PROBLEM_SOLVING_INSTRUCTIONS = """
 - Use the chat to think through the problem step by step.
-- You will discuss the problem with an AI discussion partner. It may ask questions, respond to your ideas, and point out unclear comparisons, missing measurements, or alternative explanations that your current ideas do not yet address.
+- The AI discussion partner may ask questions and point out issues your current ideas do not yet address.
 - The AI discussion partner will not provide a final study design for you.
-- Treat this activity as part of the learning sequence, not as a warm-up or a pretest.
 - Do not enter your name, email address, phone number, student number, or other identifying information in the chat or in the `Study ideas to submit` box.
-- You may revise your ideas during the conversation.
 - In the `Study ideas to submit` box, describe the study ideas you want to submit.
-- You may use ideas from the discussion above, but please make sure the text in the box clearly describes the study ideas you want to submit.
-- You can edit your submitted study ideas before continuing.
 """
 
 PROBLEM_SOLVING_CHAT_INSTRUCTION = """
 Please work through the problem with the AI discussion partner before submitting your study ideas. The option to end the chat will appear after you have exchanged at least three messages with the AI discussion partner.
 """
+
+STUDY_IDEAS_SAVE_NOTE = (
+    "This box is only for this learning activity. You do not need to save the text; "
+    "when you are ready, continue to the next step."
+)
+
+SHOW_FULL_RESEARCH_PROBLEM_LABEL = "Show full research problem"
+
+COPY_STUDY_DATA_INSTRUCTION = (
+    "Use the copy icon in the top-right corner of the study data box. "
+    "Then return to Qualtrics and paste the study data into the next survey box."
+)
 
 INSTRUCTION_FIRST_STIMULUS_OPENING = """
 In this lesson, you will work with the research problem about social media use and anxiety that you just read about. Several communication researchers have different ideas about why students who use social media heavily may report higher anxiety.

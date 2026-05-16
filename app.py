@@ -115,7 +115,6 @@
 
 # ── Standard library ──────────────────────────────────────────────────────────
 import json
-import importlib
 import os
 import random
 from datetime import datetime, timezone
@@ -131,47 +130,27 @@ try:
 except Exception:  # pragma: no cover - test mocks may not expose components
     components = None
 
-import study_content as _study_content
-
-_study_content = importlib.reload(_study_content)
-
-CANONICAL_SOLUTION_FIGURE_CAPTION = _study_content.CANONICAL_SOLUTION_FIGURE_CAPTION
-CANONICAL_SOLUTION_FIGURE_PATH = _study_content.CANONICAL_SOLUTION_FIGURE_PATH
-INSTRUCTION_AFTER_PROBLEM_SOLVING_STIMULUS_OPENING = (
-    _study_content.INSTRUCTION_AFTER_PROBLEM_SOLVING_STIMULUS_OPENING
-)
-INSTRUCTION_ENTRY = _study_content.INSTRUCTION_ENTRY
-INSTRUCTION_FIRST_STIMULUS_OPENING = _study_content.INSTRUCTION_FIRST_STIMULUS_OPENING
-INSTRUCTION_TO_PROBLEM_SOLVING_TRANSITION = (
-    _study_content.INSTRUCTION_TO_PROBLEM_SOLVING_TRANSITION
-)
-INSTRUCTIONAL_STIMULUS_AFTER_FIGURE = _study_content.INSTRUCTIONAL_STIMULUS_AFTER_FIGURE
-INSTRUCTIONAL_STIMULUS_BEFORE_FIGURE = _study_content.INSTRUCTIONAL_STIMULUS_BEFORE_FIGURE
-PROBLEM_SOLVING_CHAT_INSTRUCTION = _study_content.PROBLEM_SOLVING_CHAT_INSTRUCTION
-PROBLEM_SOLVING_ENTRY = _study_content.PROBLEM_SOLVING_ENTRY
-PROBLEM_SOLVING_INSTRUCTIONS = _study_content.PROBLEM_SOLVING_INSTRUCTIONS
-PROBLEM_SOLVING_TASK_PROMPT = _study_content.PROBLEM_SOLVING_TASK_PROMPT
-PROBLEM_SOLVING_TO_INSTRUCTION_TRANSITION = (
-    _study_content.PROBLEM_SOLVING_TO_INSTRUCTION_TRANSITION
-)
-RSM_COUNT_OPTIONS = _study_content.RSM_COUNT_OPTIONS
-RSM_COUNT_PROMPT = _study_content.RSM_COUNT_PROMPT
-SESSION_INTRODUCTION = _study_content.SESSION_INTRODUCTION
-SHARED_PROBLEM_BACKGROUND = _study_content.SHARED_PROBLEM_BACKGROUND
-SHOW_FULL_RESEARCH_PROBLEM_LABEL = getattr(
-    _study_content, "SHOW_FULL_RESEARCH_PROBLEM_LABEL", "Show full research problem"
-)
-STUDY_IDEAS_SAVE_NOTE = getattr(
-    _study_content,
-    "STUDY_IDEAS_SAVE_NOTE",
-    "This box is only for this learning activity. You do not need to save the text; "
-    "when you are ready, continue to the next step.",
-)
-COPY_STUDY_DATA_INSTRUCTION = getattr(
-    _study_content,
-    "COPY_STUDY_DATA_INSTRUCTION",
-    "Use the copy icon in the top-right corner of the study data box. "
-    "Then return to Qualtrics and paste the study data into the next survey box.",
+from study_content import (
+    CANONICAL_SOLUTION_FIGURE_CAPTION,
+    CANONICAL_SOLUTION_FIGURE_PATH,
+    COPY_STUDY_DATA_INSTRUCTION,
+    INSTRUCTION_AFTER_PROBLEM_SOLVING_STIMULUS_OPENING,
+    INSTRUCTION_ENTRY,
+    INSTRUCTION_FIRST_STIMULUS_OPENING,
+    INSTRUCTION_TO_PROBLEM_SOLVING_TRANSITION,
+    INSTRUCTIONAL_STIMULUS_AFTER_FIGURE,
+    INSTRUCTIONAL_STIMULUS_BEFORE_FIGURE,
+    PROBLEM_SOLVING_CHAT_INSTRUCTION,
+    PROBLEM_SOLVING_ENTRY,
+    PROBLEM_SOLVING_INSTRUCTIONS,
+    PROBLEM_SOLVING_TASK_PROMPT,
+    PROBLEM_SOLVING_TO_INSTRUCTION_TRANSITION,
+    RSM_COUNT_OPTIONS,
+    RSM_COUNT_PROMPT,
+    SESSION_INTRODUCTION,
+    SHARED_PROBLEM_BACKGROUND,
+    SHOW_FULL_RESEARCH_PROBLEM_LABEL,
+    STUDY_IDEAS_SAVE_NOTE,
 )
 
 # Load the .env file so that OPENAI_API_KEY is available via os.environ

@@ -3,18 +3,21 @@
 [![Open Source Love](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)](https://github.com/ellerbrock/open-source-badges/)
 ![GitHub License](https://img.shields.io/github/license/surveychat/surveychat)
 
-`surveychat` is an open-source web application that enables researchers to administer surveys and conduct randomized experiments involving large language model (LLM)-based conversational agents, without the need to develop custom web application code. The system supports two primary operational modes: (i) **survey mode**, in which all participants interact with an identical chatbot configuration, and (ii) **experiment mode**, in which participants are randomly assigned to one of multiple chatbot conditions, each defined by a researcher-specified persona and language model. Upon completion of the interaction, participants receive an anonymized JSON transcript that contains only the role, content, and timestamp of each message. This transcript can be copied back into the parent survey platform (such as Qualtrics), within which the chatbot interface itself can also be directly embedded. The frontend of `surveychat` is implemented using Streamlit, and the entire application is configured via a single Python file. The system does not persist conversation data on its server and is compatible with any chat-completions-compatible API endpoint - including locally hosted models - thereby allowing researchers to retain full control over model selection, API usage, data jurisdiction, and adherence to ethical and regulatory requirements.
+This repository is a thesis-specific Streamlit adaptation of `surveychat` for an online experiment about research-design learning. The current study uses Qualtrics for consent, background items, randomization, later questionnaire blocks, posttest, debriefing, and copy-back capture. Streamlit owns only the learning sequence, the AI-supported problem-solving interface, the `RSM count` item, and the minimal completion/process JSON payload.
 
 > Simple setup instructions [here](https://surveychat.github.io/).
 
 > **Demo:** Try an experimental setup [here](https://surveychat.invisible.info) — use code ALPHA for a neutral chatbot, and BETA for an empathetic chatbot. This demo uses the open-source model `gpt-oss-120b`.
 
-surveychat works in two modes:
+Current study flow:
 
-- **Survey mode** - every participant talks to the same chatbot. Good for open-ended interviews, pilot testing, or replacing a plain text-entry question with a richer conversation.
-- **Experiment mode** - participants are automatically assigned to different chatbot versions (e.g. neutral vs. empathetic vs. socratic). Use this when you want to *compare* how different chatbot styles/models/prompts affect responses.
+- Qualtrics randomizes participants and stores the interpretable condition internally.
+- Qualtrics passes only an opaque `route_code` to Streamlit.
+- Streamlit maps that route code to the phase order and keeps the same Socratic tutor behavior across routes.
+- The participant-visible copy-back payload may include the opaque `route_code`, but it must not expose `condition_internal`, `I_PS`, `PS_I`, `I->PS`, `PS->I`, model names, API endpoints, keys, headers, or other sensitive implementation details.
+- The formal copy-back payload does not include the full AI-chat transcript or the text entered in the `Study ideas to submit` box.
 
-In both modes the participant chats, clicks **End chat**, and copies a text transcript back into your survey tool (e.g. Qualtrics). No coding experience beyond editing a text file is required - no server to manage, no database to set up.
+AI backend provider configuration is handled separately from this README and remains a deployment/approval decision. Do not infer the approved provider route from generic examples below.
 
 
 
@@ -26,9 +29,9 @@ Chatting with the bot:
 
 ![Chat interface](paper/surveychat-interface-2.png)
 
-Copying the transcript when done:
+Copying the study data when done:
 
-![Transcript export](paper/surveychat-interface-3.png)
+![Study data export](paper/surveychat-interface-3.png)
 
 ---
 
@@ -171,8 +174,8 @@ STUDY_TITLE = "surveychat"
 
 WELCOME_MESSAGE = (
     "You are about to have a short conversation with an AI assistant. "
-    "When you are finished, click the <strong>End chat</strong> button to receive your transcript, "
-    "then paste it back into the survey."
+    "When you are finished, click the <strong>End chat</strong> button and complete the final check, "
+    "then paste the study data back into the survey."
 )
 # A message shown to participants before they start chatting.
 # Leave as "" for no message.
@@ -183,45 +186,57 @@ PASSCODE_ENTRY_PROMPT = "Please enter the passcode you received in the survey to
 
 ---
 
-## Transcript format
+## Study-data copy-back format
 
 ```json
 {
-  "messages": [
+  "schema_version": "chatbot_stage_v1",
+  "route_code": "Q4M9K2",
+  "completion_status": "complete",
+  "total_duration_seconds": 612.448,
+  "phase_records": [
     {
-      "role": "participant", 
-      "content": "Hello!", 
-      "timestamp": "2026-03-06T14:22:01+00:00"
-    },
-    {
-      "role": "assistant",
-      "content": "Hi there! How can I help you today?", 
-      "timestamp": "2026-03-06T14:22:03+00:00"
+      "phase": "instruction",
+      "duration_seconds": 181.226
     }
-  ]
+  ],
+  "rsm_count": {
+    "value": "3 ideas"
+  },
+  "process_metadata": {
+    "participant_message_count": 4,
+    "assistant_message_count": 4,
+    "study_ideas_submitted": true,
+    "study_ideas_char_count": 842
+  },
+  "errors": []
 }
 ```
 
-Each message has:
-- `role` - either `"participant"` (what the person typed) or `"assistant"` (the chatbot's reply)
-- `content` - the full text of the message
-- `timestamp` - when the message was sent (UTC time)
+The copy-back JSON contains completion and process metadata only:
+- `route_code` - the opaque route code passed from Qualtrics; recover condition from Qualtrics embedded data, not from this payload
+- `phase_records` - phase labels and relative durations only, without absolute timestamps
+- `rsm_count` - the participant's response to the final RSM count item
+- `process_metadata` - low-risk counts such as participant/assistant turn counts and submitted-ideas character count
+- `errors` - coarse recovered-error metadata, if any
 
 
-**Note:** The JSON transcript can be parsed in Python or R using standard libraries. Each message becomes a row in a dataframe, with columns for `role`, `content`, and `timestamp`.
+**Note:** The formal dataset should not include the full AI-chat transcript or the text typed in the `Study ideas to submit` box.
 
 Parse in Python:
 ```python
 import json, pandas as pd
-data = json.loads(transcript_string)   # transcript_string is the text they pasted
-df   = pd.DataFrame(data["messages"]) # one row per message
+data = json.loads(study_data_string)        # study_data_string is the text they pasted
+phase_df = pd.DataFrame(data["phase_records"])
+metadata = data["process_metadata"]
 ```
 
 Parse in R:
 ```r
 library(jsonlite)
-data <- fromJSON(transcript_string)
-df   <- as.data.frame(data$messages)
+data <- fromJSON(study_data_string)
+phase_df <- as.data.frame(data$phase_records)
+metadata <- data$process_metadata
 ```
 
 ---
@@ -284,7 +299,7 @@ streamlit run app.py --server.port 80 --server.headless true
 
 ## Integrating with Qualtrics
 
-surveychat works well when embedded directly inside your Qualtrics survey using an **iFrame** - a standard way to show one website inside another. Participants stay on the Qualtrics page the whole time: the chatbot loads right there, they chat, and then paste their transcript into the next question without ever opening a separate tab. In experiment mode, Qualtrics shows each participant their passcode just above the iFrame so they can enter it to start.
+For this thesis study, Qualtrics should randomize participants, store `condition_internal`, set an opaque `route_code`, launch Streamlit with that route code, and then collect the participant-visible study-data JSON in one required text-entry question. Streamlit should not persist formal research data server-side, should not expose condition labels in the participant-visible payload, and should not add posttest, mediator, manipulation-check, demographic, consent, or debrief blocks.
 
 To embed, add a **Text / Graphic** block in Qualtrics and paste this HTML, replacing the URL with your own:
 
@@ -300,16 +315,14 @@ To embed, add a **Text / Graphic** block in Qualtrics and paste this HTML, repla
 
 The `allow="clipboard-write"` attribute lets the built-in copy button work inside the iFrame.
 
-**Survey mode (N = 1):**
-1. Add a **Text / Graphic** block containing the iFrame above (or just a plain link if you prefer)
-2. After that block, add a **Text Entry** question: *"Paste your chat transcript here"*
-3. Export responses and parse the JSON from that column
+**Current thesis route:**
+1. In Qualtrics Survey Flow, randomize participants into the two learning orders.
+2. Store researcher-facing `condition_internal` and participant-facing `route_code` as embedded data.
+3. Launch Streamlit with `?route_code=${e://Field/route_code}`.
+4. Immediately after Streamlit, add one required **Text Entry** question for the copy-back JSON, for example: *"Please paste the study data from the chatbot box below."*
+5. Export responses and recover condition from Qualtrics embedded data, not from the participant-visible JSON.
 
-**Experiment mode (N > 1):**
-1. Use Qualtrics **Survey Flow - Randomizer** to split participants into arms
-2. In each arm's branch, display the matching passcode (e.g. *"Your passcode is: ALPHA"*) and embed the iFrame below it
-3. After the iFrame block, add a **Text Entry** question: *"Paste your chat transcript here"*
-4. Export responses - you know which condition each participant was in from which Qualtrics branch they went through
+Do not add return-URL automation, hidden-field automation, Qualtrics-side JSON validation, server-side formal data persistence, or condition labels in the participant-visible payload for the first build.
 
 ---
 

@@ -1413,7 +1413,7 @@ if st.session_state["current_stage"] == "phase" and _current_phase == "problem_s
                 use_container_width=True,
                 key="problem_submit_after_back_button",
             )
-        elif _participant_turns >= 3:
+        elif _participant_turns >= 5:
             if not st.session_state["confirm_end"]:
                 _end_requested = st.button(
                     "End chat",
@@ -1429,7 +1429,7 @@ if st.session_state["current_stage"] == "phase" and _current_phase == "problem_s
                     key="problem_confirm_submit_button",
                 )
         else:
-            remaining = 3 - _participant_turns
+            remaining = 5 - _participant_turns
             st.button(
                 "End chat",
                 type="secondary",

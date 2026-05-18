@@ -388,6 +388,11 @@ def get_phase_sequence(condition: dict) -> tuple:
     return tuple(condition.get("phase_sequence", ("problem_solving",)))
 
 
+def should_show_full_problem_expander(phase_index: int) -> bool:
+    """Show collapsed problem context only when problem solving follows another phase."""
+    return phase_index > 0
+
+
 def count_participant_messages(messages: list) -> int:
     """Count participant/user turns in the problem-solving chat."""
     return sum(1 for message in messages if message.get("role") == "user")
@@ -1226,7 +1231,7 @@ def stream_pending_assistant_response(active_condition: dict) -> bool:
 #      message is appended, then the LLM is called.
 #    • The response is streamed token-by-token via st.write_stream() to give a
 #      natural, responsive feel even on slow connections.
-#    • The End chat button appears only after at least three participant turns.
+#    • The End chat button appears only after at least five participant turns.
 #
 #  Stage 3 - RSM count and copy-back
 #    • The RSM count form appears immediately after problem solving.
@@ -1301,6 +1306,11 @@ if st.session_state["current_stage"] == "phase" and _current_phase == "instructi
         st.markdown(PROBLEM_SOLVING_TO_INSTRUCTION_TRANSITION)
         st.markdown(INSTRUCTION_AFTER_PROBLEM_SOLVING_STIMULUS_OPENING)
 
+    if should_show_full_problem_expander(st.session_state["phase_index"]):
+        with st.expander(SHOW_FULL_RESEARCH_PROBLEM_LABEL, expanded=False):
+            st.markdown(SHARED_PROBLEM_BACKGROUND)
+            st.markdown(PROBLEM_SOLVING_TASK_PROMPT)
+
     st.markdown(INSTRUCTIONAL_STIMULUS_BEFORE_FIGURE)
     _figure_path = Path(__file__).resolve().parent / CANONICAL_SOLUTION_FIGURE_PATH
     if _figure_path.exists():
@@ -1338,9 +1348,10 @@ if st.session_state["current_stage"] == "phase" and _current_phase == "problem_s
     else:
         st.markdown(INSTRUCTION_TO_PROBLEM_SOLVING_TRANSITION)
 
-    with st.expander(SHOW_FULL_RESEARCH_PROBLEM_LABEL, expanded=False):
-        st.markdown(SHARED_PROBLEM_BACKGROUND)
-        st.markdown(PROBLEM_SOLVING_TASK_PROMPT)
+    if should_show_full_problem_expander(st.session_state["phase_index"]):
+        with st.expander(SHOW_FULL_RESEARCH_PROBLEM_LABEL, expanded=False):
+            st.markdown(SHARED_PROBLEM_BACKGROUND)
+            st.markdown(PROBLEM_SOLVING_TASK_PROMPT)
 
     st.markdown(PROBLEM_SOLVING_TASK_PROMPT)
     st.markdown("### Work with the AI discussion partner")

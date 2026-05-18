@@ -59,7 +59,7 @@ PROBLEM_SOLVING_INSTRUCTIONS = """
 """
 
 PROBLEM_SOLVING_CHAT_INSTRUCTION = """
-Please work through the problem with the AI discussion partner before submitting your study ideas. The option to end the chat will appear after you have exchanged at least three messages with the AI discussion partner.
+Please work through the problem with the AI discussion partner before submitting your study ideas. The option to end the chat will appear after you have sent at least five messages to the AI discussion partner.
 """
 
 STUDY_IDEAS_SAVE_NOTE = (

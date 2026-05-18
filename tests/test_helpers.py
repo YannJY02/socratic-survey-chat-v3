@@ -264,6 +264,19 @@ class TestStudyRoutingHelpers:
         assert by_route["Q7M2"]["phase_sequence"] == ("instruction", "problem_solving")
         assert by_route["L9T4"]["phase_sequence"] == ("problem_solving", "instruction")
 
+    def test_full_problem_expander_only_for_later_learning_phases(self):
+        by_route = {condition["route_code"]: condition for condition in app.CONDITIONS[:2]}
+
+        q7m2_problem_index = by_route["Q7M2"]["phase_sequence"].index("problem_solving")
+        l9t4_problem_index = by_route["L9T4"]["phase_sequence"].index("problem_solving")
+        q7m2_instruction_index = by_route["Q7M2"]["phase_sequence"].index("instruction")
+        l9t4_instruction_index = by_route["L9T4"]["phase_sequence"].index("instruction")
+
+        assert app.should_show_full_problem_expander(q7m2_problem_index) is True
+        assert app.should_show_full_problem_expander(l9t4_problem_index) is False
+        assert app.should_show_full_problem_expander(q7m2_instruction_index) is False
+        assert app.should_show_full_problem_expander(l9t4_instruction_index) is True
+
     def test_count_participant_messages_counts_only_user_turns(self):
         messages = [
             {"role": "user", "content": "one"},
@@ -442,6 +455,10 @@ class TestStudyContentSync:
         assert study_content.SHOW_FULL_RESEARCH_PROBLEM_LABEL == "Show full research problem"
         assert "only for this learning activity" in study_content.STUDY_IDEAS_SAVE_NOTE
         assert "You do not need to save the text" in study_content.STUDY_IDEAS_SAVE_NOTE
+        assert "five messages" in study_content.PROBLEM_SOLVING_CHAT_INSTRUCTION
+        assert "three messages" not in study_content.PROBLEM_SOLVING_CHAT_INSTRUCTION
+        assert "text box below" in study_content.COPY_STUDY_DATA_INSTRUCTION
+        assert "Copy study data button" not in study_content.COPY_STUDY_DATA_INSTRUCTION
         assert "select all" in study_content.COPY_STUDY_DATA_INSTRUCTION
         assert "copy manually" in study_content.COPY_STUDY_DATA_INSTRUCTION
         assert "copy icon" not in study_content.COPY_STUDY_DATA_INSTRUCTION

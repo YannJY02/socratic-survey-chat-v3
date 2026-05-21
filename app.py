@@ -860,59 +860,11 @@ a[href="/?utm_medium=oembed"] {
 /* Constrain to a readable column width and reduce default top padding. */
 .block-container { max-width: 740px; padding-top: 2.25rem; padding-bottom: 1rem; }
 
-/* ── Transcript code block ──────────────────────────────────────────────────── */
-/* Wrap long JSON lines so participants on narrow screens can read everything
-   without horizontal scrolling. */
-.stCode,
-[data-testid="stCode"] {
-    position: relative !important;
-}
-
-.stCode pre,
-[data-testid="stCode"] pre {
-    white-space: pre-wrap;
-    word-break: break-word;
-    padding-right: 3.25rem !important;
-}
-
 .study-data-label {
     font-size: 0.9rem;
     font-weight: 500;
     color: #1F2429;
     margin-bottom: 0.35rem;
-}
-
-/* Streamlit's native code-copy control is hidden until hover by default and
-   may be transformed to 0x0 by internal styles. Keep it visible and anchored
-   in the code block's upper-right corner. */
-button[data-testid="stCodeCopyButton"],
-[data-testid="stCode"] button[data-testid="stCodeCopyButton"] {
-    position: absolute !important;
-    top: 0.5rem !important;
-    right: 0.5rem !important;
-    z-index: 20 !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 2.25rem !important;
-    height: 2.25rem !important;
-    min-width: 2.25rem !important;
-    min-height: 2.25rem !important;
-    transform: none !important;
-    background: rgba(255, 255, 255, 0.96) !important;
-    border: 1px solid #5C6C79 !important;
-    border-radius: 6px !important;
-    color: #1F2429 !important;
-    box-shadow: 0 1px 3px rgba(31, 36, 41, 0.18) !important;
-    pointer-events: auto !important;
-}
-
-button[data-testid="stCodeCopyButton"] svg,
-[data-testid="stCode"] button[data-testid="stCodeCopyButton"] svg {
-    width: 1rem !important;
-    height: 1rem !important;
 }
 
 /* ── App header ─────────────────────────────────────────────────────────────── */

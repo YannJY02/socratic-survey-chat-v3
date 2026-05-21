@@ -831,7 +831,7 @@ st.set_page_config(
 #   PRIMARY   = #5C6C79   (primaryColor)             - borders, accents
 #   TEXT      = #1F2429   (textColor)                - body text
 #   BG_SEC    = #EFF1F3   (secondaryBackgroundColor)  - banner backgrounds
-st.markdown("""
+GLOBAL_STYLES = """
 <style>
 /* ── Typography ────────────────────────────────────────────────────────────── */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
@@ -844,6 +844,17 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
    like a standalone app rather than a Streamlit dashboard. */
 #MainMenu, footer, header { visibility: hidden; }
 [data-testid="collapsedControl"] { display: none; }
+
+/* Hide Streamlit Community Cloud's oEmbed bottom bar. The built-in Fullscreen
+   link points to /?utm_medium=oembed without route_code, which drops the
+   participant's assigned condition when opened from Qualtrics. */
+div[class^="_container_"]:has(a[href="/?utm_medium=oembed"]),
+div[class*=" _container_"]:has(a[href="/?utm_medium=oembed"]),
+a[href="/?utm_medium=oembed"] {
+    display: none !important;
+}
+
+/* Regression anchors for the hidden oEmbed bar: Built with Streamlit / Fullscreen. */
 
 /* ── Page layout ────────────────────────────────────────────────────────────── */
 /* Constrain to a readable column width and reduce default top padding. */
@@ -897,7 +908,9 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
     margin-bottom: 1.25rem;
 }
 </style>
-""", unsafe_allow_html=True)
+"""
+
+st.markdown(GLOBAL_STYLES, unsafe_allow_html=True)
 
 
 # =============================================================================

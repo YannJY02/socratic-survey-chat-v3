@@ -463,6 +463,11 @@ class TestStudyContentSync:
         assert "copy manually" in study_content.COPY_STUDY_DATA_INSTRUCTION
         assert "copy icon" not in study_content.COPY_STUDY_DATA_INSTRUCTION
 
+    def test_streamlit_oembed_footer_is_hidden(self):
+        assert '/?utm_medium=oembed' in app.GLOBAL_STYLES
+        assert "Built with Streamlit" in app.GLOBAL_STYLES
+        assert "Fullscreen" in app.GLOBAL_STYLES
+
     def test_exact_runtime_prompt_shape_is_synchronized(self):
         assert "ROLE AND INVARIANCE" in app.SOCRATIC_TUTOR_PROMPT
         assert "AUTHORIZED RESOURCES" in app.SOCRATIC_TUTOR_PROMPT

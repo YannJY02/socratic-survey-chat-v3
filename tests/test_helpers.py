@@ -459,7 +459,8 @@ class TestStudyContentSync:
         assert "three messages" not in study_content.PROBLEM_SOLVING_CHAT_INSTRUCTION
         assert "copy button" in study_content.COPY_STUDY_DATA_INSTRUCTION
         assert "Study data to copy box" in study_content.COPY_STUDY_DATA_INSTRUCTION
-        assert "manual fallback box" in study_content.COPY_STUDY_DATA_INSTRUCTION
+        assert "that same box" in study_content.COPY_STUDY_DATA_INSTRUCTION
+        assert "manual fallback box" not in study_content.COPY_STUDY_DATA_INSTRUCTION
         assert "paste it into the survey box" in study_content.COPY_STUDY_DATA_INSTRUCTION
         assert "copy icon" not in study_content.COPY_STUDY_DATA_INSTRUCTION
 

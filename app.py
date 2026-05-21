@@ -1592,9 +1592,9 @@ if st.session_state["current_stage"] == "rsm":
 #  model, participant chat messages, and submitted study-ideas text remain
 #  excluded from the participant-visible payload.
 #
-#  The native st.code() copy affordance is shown first. A selectable text area
-#  remains as a fallback because clipboard buttons can fail inside survey
-#  platform iframes.
+#  The native st.code() copy affordance is shown on the single study-data box.
+#  If clipboard access is blocked, participants can manually select and copy
+#  the text from that same box.
 
 if st.session_state["current_stage"] == "completion":
     if not st.session_state["completed_at"]:
@@ -1645,20 +1645,6 @@ if st.session_state["current_stage"] == "completion":
         language="json",
         wrap_lines=True,
         height=420,
-    )
-    st.text_area(
-        "Manual copy fallback (same study data)",
-        value=payload_json,
-        height=420,
-        key="study_data_copy_box",
-        help=(
-            "If automatic copying is blocked by the browser or survey frame, "
-            "click inside this box, select all, and copy manually."
-        ),
-    )
-    st.caption(
-        "Manual copy: click inside the box, press Cmd+A on Mac or Ctrl+A on "
-        "Windows, then press Cmd+C or Ctrl+C."
     )
     st.stop()
 

@@ -71,8 +71,8 @@ SHOW_FULL_RESEARCH_PROBLEM_LABEL = "Show full research problem"
 
 COPY_STUDY_DATA_INSTRUCTION = (
     "Use the copy button in the Study data to copy box below. If the button does "
-    "not work, copy the same text from the manual fallback box. Then return to "
-    "Qualtrics and paste it into the survey box."
+    "not work, select the text in that same box and copy it manually. Then "
+    "return to Qualtrics and paste it into the survey box."
 )
 
 INSTRUCTION_FIRST_STIMULUS_OPENING = """

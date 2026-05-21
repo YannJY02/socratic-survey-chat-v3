@@ -863,7 +863,17 @@ a[href="/?utm_medium=oembed"] {
 /* ── Transcript code block ──────────────────────────────────────────────────── */
 /* Wrap long JSON lines so participants on narrow screens can read everything
    without horizontal scrolling. */
-.stCode pre { white-space: pre-wrap; word-break: break-word; }
+.stCode,
+[data-testid="stCode"] {
+    position: relative !important;
+}
+
+.stCode pre,
+[data-testid="stCode"] pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    padding-right: 3.25rem !important;
+}
 
 .study-data-label {
     font-size: 0.9rem;
@@ -872,10 +882,15 @@ a[href="/?utm_medium=oembed"] {
     margin-bottom: 0.35rem;
 }
 
-/* Streamlit's native code-copy control is hidden until hover by default.  Keep
-   it visible so participants can discover the copy affordance without having
-   to scan the code block. */
+/* Streamlit's native code-copy control is hidden until hover by default and
+   may be transformed to 0x0 by internal styles. Keep it visible and anchored
+   in the code block's upper-right corner. */
+button[data-testid="stCodeCopyButton"],
 [data-testid="stCode"] button[data-testid="stCodeCopyButton"] {
+    position: absolute !important;
+    top: 0.5rem !important;
+    right: 0.5rem !important;
+    z-index: 20 !important;
     opacity: 1 !important;
     visibility: visible !important;
     display: inline-flex !important;
@@ -894,6 +909,7 @@ a[href="/?utm_medium=oembed"] {
     pointer-events: auto !important;
 }
 
+button[data-testid="stCodeCopyButton"] svg,
 [data-testid="stCode"] button[data-testid="stCodeCopyButton"] svg {
     width: 1rem !important;
     height: 1rem !important;

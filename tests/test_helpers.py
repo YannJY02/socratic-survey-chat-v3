@@ -458,6 +458,7 @@ class TestStudyContentSync:
         assert "five messages" in study_content.PROBLEM_SOLVING_CHAT_INSTRUCTION
         assert "three messages" not in study_content.PROBLEM_SOLVING_CHAT_INSTRUCTION
         assert "copy button" in study_content.COPY_STUDY_DATA_INSTRUCTION
+        assert "upper-right corner" in study_content.COPY_STUDY_DATA_INSTRUCTION
         assert "Study data to copy box" in study_content.COPY_STUDY_DATA_INSTRUCTION
         assert "that same box" in study_content.COPY_STUDY_DATA_INSTRUCTION
         assert "manual fallback box" not in study_content.COPY_STUDY_DATA_INSTRUCTION
@@ -472,6 +473,8 @@ class TestStudyContentSync:
     def test_streamlit_native_copy_button_is_discoverable(self):
         assert "stCodeCopyButton" in app.GLOBAL_STYLES
         assert "transform: none" in app.GLOBAL_STYLES
+        assert "position: absolute" in app.GLOBAL_STYLES
+        assert "padding-right: 3.25rem" in app.GLOBAL_STYLES
         assert "study-data-label" in app.GLOBAL_STYLES
 
     def test_exact_runtime_prompt_shape_is_synchronized(self):

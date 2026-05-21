@@ -70,9 +70,9 @@ STUDY_IDEAS_SAVE_NOTE = (
 SHOW_FULL_RESEARCH_PROBLEM_LABEL = "Show full research problem"
 
 COPY_STUDY_DATA_INSTRUCTION = (
-    "Copy the full study data from the text box below. If needed, click inside "
-    "the box, select all, and copy manually. Then return to Qualtrics and paste "
-    "the study data into the next survey box."
+    "Use the copy button in the Study data to copy box below. If the button does "
+    "not work, copy the same text from the manual fallback box. Then return to "
+    "Qualtrics and paste it into the survey box."
 )
 
 INSTRUCTION_FIRST_STIMULUS_OPENING = """

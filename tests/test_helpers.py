@@ -457,16 +457,21 @@ class TestStudyContentSync:
         assert "You do not need to save the text" in study_content.STUDY_IDEAS_SAVE_NOTE
         assert "five messages" in study_content.PROBLEM_SOLVING_CHAT_INSTRUCTION
         assert "three messages" not in study_content.PROBLEM_SOLVING_CHAT_INSTRUCTION
-        assert "text box below" in study_content.COPY_STUDY_DATA_INSTRUCTION
-        assert "Copy study data button" not in study_content.COPY_STUDY_DATA_INSTRUCTION
-        assert "select all" in study_content.COPY_STUDY_DATA_INSTRUCTION
-        assert "copy manually" in study_content.COPY_STUDY_DATA_INSTRUCTION
+        assert "copy button" in study_content.COPY_STUDY_DATA_INSTRUCTION
+        assert "Study data to copy box" in study_content.COPY_STUDY_DATA_INSTRUCTION
+        assert "manual fallback box" in study_content.COPY_STUDY_DATA_INSTRUCTION
+        assert "paste it into the survey box" in study_content.COPY_STUDY_DATA_INSTRUCTION
         assert "copy icon" not in study_content.COPY_STUDY_DATA_INSTRUCTION
 
     def test_streamlit_oembed_footer_is_hidden(self):
         assert '/?utm_medium=oembed' in app.GLOBAL_STYLES
         assert "Built with Streamlit" in app.GLOBAL_STYLES
         assert "Fullscreen" in app.GLOBAL_STYLES
+
+    def test_streamlit_native_copy_button_is_discoverable(self):
+        assert "stCodeCopyButton" in app.GLOBAL_STYLES
+        assert "transform: none" in app.GLOBAL_STYLES
+        assert "study-data-label" in app.GLOBAL_STYLES
 
     def test_exact_runtime_prompt_shape_is_synchronized(self):
         assert "ROLE AND INVARIANCE" in app.SOCRATIC_TUTOR_PROMPT

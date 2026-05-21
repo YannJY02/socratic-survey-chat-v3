@@ -865,6 +865,40 @@ a[href="/?utm_medium=oembed"] {
    without horizontal scrolling. */
 .stCode pre { white-space: pre-wrap; word-break: break-word; }
 
+.study-data-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #1F2429;
+    margin-bottom: 0.35rem;
+}
+
+/* Streamlit's native code-copy control is hidden until hover by default.  Keep
+   it visible so participants can discover the copy affordance without having
+   to scan the code block. */
+[data-testid="stCode"] button[data-testid="stCodeCopyButton"] {
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 2.25rem !important;
+    height: 2.25rem !important;
+    min-width: 2.25rem !important;
+    min-height: 2.25rem !important;
+    transform: none !important;
+    background: rgba(255, 255, 255, 0.96) !important;
+    border: 1px solid #5C6C79 !important;
+    border-radius: 6px !important;
+    color: #1F2429 !important;
+    box-shadow: 0 1px 3px rgba(31, 36, 41, 0.18) !important;
+    pointer-events: auto !important;
+}
+
+[data-testid="stCode"] button[data-testid="stCodeCopyButton"] svg {
+    width: 1rem !important;
+    height: 1rem !important;
+}
+
 /* ── App header ─────────────────────────────────────────────────────────────── */
 /* A thin rule below the study title separates it visually from the chat. */
 .app-header {
@@ -1558,8 +1592,9 @@ if st.session_state["current_stage"] == "rsm":
 #  model, participant chat messages, and submitted study-ideas text remain
 #  excluded from the participant-visible payload.
 #
-#  A selectable text area is used instead of st.code() because clipboard
-#  buttons can fail inside survey platform iframes.
+#  The native st.code() copy affordance is shown first. A selectable text area
+#  remains as a fallback because clipboard buttons can fail inside survey
+#  platform iframes.
 
 if st.session_state["current_stage"] == "completion":
     if not st.session_state["completed_at"]:
@@ -1601,8 +1636,18 @@ if st.session_state["current_stage"] == "completion":
     )
 
     payload_json = json.dumps(payload, indent=2, ensure_ascii=False)
+    st.markdown(
+        '<div class="study-data-label">Study data to copy (do not edit)</div>',
+        unsafe_allow_html=True,
+    )
+    st.code(
+        payload_json,
+        language="json",
+        wrap_lines=True,
+        height=420,
+    )
     st.text_area(
-        "Study data to copy (do not edit)",
+        "Manual copy fallback (same study data)",
         value=payload_json,
         height=420,
         key="study_data_copy_box",

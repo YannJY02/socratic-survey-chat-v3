@@ -458,8 +458,7 @@ class TestStudyContentSync:
         assert "five messages" in study_content.PROBLEM_SOLVING_CHAT_INSTRUCTION
         assert "three messages" not in study_content.PROBLEM_SOLVING_CHAT_INSTRUCTION
         assert "copy button" in study_content.COPY_STUDY_DATA_INSTRUCTION
-        assert "Move your pointer over" in study_content.COPY_STUDY_DATA_INSTRUCTION
-        assert "tap inside" in study_content.COPY_STUDY_DATA_INSTRUCTION
+        assert "Hover over or tap" in study_content.COPY_STUDY_DATA_INSTRUCTION
         assert "upper-right corner" in study_content.COPY_STUDY_DATA_INSTRUCTION
         assert "Study data to copy box" in study_content.COPY_STUDY_DATA_INSTRUCTION
         assert "that same box" in study_content.COPY_STUDY_DATA_INSTRUCTION

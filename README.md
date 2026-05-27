@@ -157,9 +157,10 @@ CONDITIONS = [
 ### Step 3 - Optional settings
 
 ```python
-API_BASE_URL = "https://api.openai.com/v1"
+API_BASE_URL = "https://llmproxy.uva.nl"
 # The base URL for your LLM provider's chat-completions endpoint.
 # Common values:
+#   UvA LLM proxy: "https://llmproxy.uva.nl"
 #   OpenAI:       "https://api.openai.com/v1"
 #   OpenRouter:   "https://openrouter.ai/api/v1"
 #   HuggingFace:  "https://api-inference.huggingface.co/v1"

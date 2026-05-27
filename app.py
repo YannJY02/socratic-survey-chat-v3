@@ -94,6 +94,7 @@
 #  LLM PROVIDERS
 #  -------------
 #  Set API_BASE_URL to any chat-completions-compatible endpoint:
+#      UvA LLM proxy:     https://llmproxy.uva.nl
 #      OpenAI:            https://api.openai.com/v1
 #      Azure via LiteLLM: https://your-proxy.azurewebsites.net
 #      OpenRouter:        https://openrouter.ai/api/v1
@@ -516,7 +517,9 @@ def render_scroll_top_if_requested() -> None:
 # ── LLM API settings ──────────────────────────────────────────────────────────
 #
 #  API_BASE_URL  The base URL for your LLM API endpoint.
-#                - Azure LiteLLM proxy (default):
+#                - UvA LLM proxy (default):
+#                    "https://llmproxy.uva.nl"
+#                - Azure LiteLLM proxy:
 #                    "https://ai-research-proxy.azurewebsites.net"
 #                - OpenAI:
 #                    "https://api.openai.com/v1"
@@ -530,8 +533,7 @@ def render_scroll_top_if_requested() -> None:
 #
 #  The API key is read from OPENAI_API_KEY in the .env file - do not paste
 #  keys directly here.
-# API_BASE_URL = "https://ai-research-proxy.azurewebsites.net"
-API_BASE_URL = "https://api.deepseek.com"
+API_BASE_URL = "https://llmproxy.uva.nl"
 
 # ── How many chatbot conditions does your study have? ─────────────────────────
 #
@@ -589,7 +591,8 @@ N_CONDITIONS = 2
 #
 #  "model"          The model identifier string for this condition.
 #                   Common options:
-#                     "gpt-oss-120b"  - large open-weights model (default proxy)
+#                     "gpt-5.1"       - GPT-5.1 via the configured proxy
+#                     "gpt-oss-120b"  - large open-weights model
 #                     "gpt4o"         - GPT-4o via OpenAI / Azure
 #                     "gpt4o-mini"    - GPT-4o Mini, faster and cheaper
 #                   Different conditions can use different models if you want
@@ -713,7 +716,7 @@ CONDITIONS = [
         "route_code":     "Q7M2",      # opaque Qualtrics URL code
         "phase_sequence": ("instruction", "problem_solving"),
         "system_prompt":  SOCRATIC_TUTOR_PROMPT,
-        "model":          "deepseek-v4-pro",
+        "model":          "gpt-5.1",
     },
 
     # ── Route L9T4 ───────────────────────────────────────────────────────────
@@ -723,7 +726,7 @@ CONDITIONS = [
         "route_code":     "L9T4",      # opaque Qualtrics URL code
         "phase_sequence": ("problem_solving", "instruction"),
         "system_prompt":  SOCRATIC_TUTOR_PROMPT,
-        "model":          "deepseek-v4-pro",
+        "model":          "gpt-5.1",
     },
 
     # The old neutral/empathetic demo defaults are intentionally replaced

@@ -923,7 +923,7 @@ st.markdown(GLOBAL_STYLES, unsafe_allow_html=True)
 # =============================================================================
 
 # Read the API key from the environment (populated from .env above).
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+OPENAI_API_KEY = os.environ.get("API_KEY")
 
 # Fail fast with a clear, actionable error if the API key is missing or blank.
 if not OPENAI_API_KEY or not OPENAI_API_KEY.strip():
@@ -1279,7 +1279,7 @@ if not st.session_state["passcode_accepted"]:
         unsafe_allow_html=True,
     )
     with st.form("key_form"):
-        _code = st.text_input("Study code", placeholder="e.g. Q7M2")
+        _code = st.text_input("Study code")
         _submitted = st.form_submit_button("Continue →", type="primary")
     if _submitted:
         _idx = resolve_route_code(_code, CONDITIONS, N_CONDITIONS)
